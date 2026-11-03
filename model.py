@@ -5,15 +5,22 @@ from music21 import converter, instrument, note, chord, stream
 
 def get_training_notes(midi_folder="midi_songs"):
     notes = []
-    if not os.path.exists(midi_folder):
-        os.makedirs(midi_folder)
-        print(f"Created '{midi_folder}' directory. Please place your MIDI files there.")
+    
+    # Get the absolute path of the directory where model.py is located
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    target_folder = os.path.join(base_dir, midi_folder)
+    
+    if not os.path.exists(target_folder):
+        os.makedirs(target_folder)
+        print(f"Created '{midi_folder}' directory at: {target_folder}")
+        print("Please place your MIDI files there and run again.")
         return notes
 
-    print("Parsing MIDI files...")
-    for file in os.listdir(midi_folder):
-        if file.endswith(".mid") or file.endswith(".midi"):
-            file_path = os.path.join(midi_folder, file)
+    print(f"Scanning folder: {target_folder}...")
+    for file in os.listdir(target_folder):
+        if file.lower().endswith((".mid", ".midi")):
+            file_path = os.path.join(target_folder, file)
+            print(f"Parsing: {file}...")
             try:
                 midi = converter.parse(file_path)
                 parts = instrument.partitionByInstrument(midi)
@@ -26,6 +33,7 @@ def get_training_notes(midi_folder="midi_songs"):
                         notes.append('.'.join(str(n) for n in element.normalOrder))
             except Exception as e:
                 print(f"Error parsing {file}: {e}")
+                
     return notes
 
 def prepare_sequences(notes, seq_length=100):
@@ -108,5 +116,25 @@ if __name__ == "__main__":
     print("=" * 65)
     print("🎵 AI Music Generation Pipeline (Task 3: music21 & LSTM)")
     print("=" * 65)
-    print("1. Place your training MIDI files inside the 'midi_songs/' folder.")
-    print("2. Call get_training_notes(), prepare_sequences(), and create_lstm_model() to train.")
+    
+    # Step 1: Get training notes from MIDI files
+    notes = get_training_notes("midi_songs")
+    
+    if len(notes) > 0:
+        print(f"Total notes found: {len(notes)}")
+        
+        # Step 2: Prepare sequences
+        network_input, network_output, pitch_names, pitches_to_int = prepare_sequences(notes)
+        
+        # Step 3: Create model
+        model = create_lstm_model(input_shape=(network_input.shape[1], network_input.shape[2]), n_vocab=len(pitch_names))
+        
+        # Step 4: Train model (uncomment fit when ready, e.g., 20 epochs for quick test)
+        print("Training LSTM model...")
+        model.fit(network_input, network_output, epochs=2, batch_size=64)
+        
+        # Step 5: Generate music
+        generate_midi_from_model(model, network_input, pitch_names, output_file="generated_output.mid")
+    else:
+        print("\n⚠️ No MIDI files found in 'midi_songs/' folder!")
+        print("Please add at least one .mid file into the 'midi_songs' directory and run again.")
